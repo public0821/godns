@@ -52,8 +52,8 @@ type Header struct {
 //+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 type Question struct {
 	Name   string `dns:"cdomain-name"` // "cdomain-name" specifies encoding (and may be compressed)
-	Qtype  uint16
-	Qclass uint16
+	QType  uint16
+	QClass uint16
 }
 
 //                              1  1  1  1  1  1
@@ -82,7 +82,7 @@ type RRBase struct {
 	Type     uint16
 	Class    uint16
 	Ttl      uint32
-	Rdlength uint16 // length of data after header
+	RdLength uint16 // length of data after header
 }
 
 type RR interface {
