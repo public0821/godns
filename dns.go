@@ -2,34 +2,34 @@ package main
 
 import (
 	//"./dns"
+	"bufio"
 	"fmt"
 	"net"
-    "os"
-    "bufio"
-    "strings"
+	"os"
+	"strings"
 )
 
-func getDnsServer()(servers []string, err error){
-    file, err := os.Open("/etc/resolv.conf")
-    if err != nil {
-        return
-    }
-    defer file.Close()
-    reader := bufio.NewReader(file)
-    lineBytes,_, err := reader.ReadLine()
-    for err == nil {
-        fields := strings.Fields(string(lineBytes))
-        if len(fields) >= 2 && fields[0] == "nameserver" {
-            fmt.Println(fields)
-            servers = append(servers, fields[1])
-        }
-        lineBytes, _, err = reader.ReadLine()
-    }
-    return
+func getDnsServer() (servers []string, err error) {
+	file, err := os.Open("/etc/resolv.conf")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	reader := bufio.NewReader(file)
+	lineBytes, _, err := reader.ReadLine()
+	for err == nil {
+		fields := strings.Fields(string(lineBytes))
+		if len(fields) >= 2 && fields[0] == "nameserver" {
+			fmt.Println(fields)
+			servers = append(servers, fields[1])
+		}
+		lineBytes, _, err = reader.ReadLine()
+	}
+	return
 }
 
 func main() {
-    fmt.Println(getDnsServer())
+	fmt.Println(getDnsServer())
 	addr := net.UDPAddr{Port: 5354}
 	conn, err := net.ListenUDP("udp", &addr)
 	if err != nil {
