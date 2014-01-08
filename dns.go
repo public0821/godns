@@ -1,88 +1,120 @@
 package main
 
 import (
-	//"./dns"
+    //"./dns"
+    "bufio"
     "io"
-	"bufio"
-	"fmt"
-	"net"
-	"os"
-	"strings"
+    "log"
+    "net"
+    "os"
+    "strings"
 )
 
+const FORWARD_PORT_NUM = 5
+
 func getDnsServer() (servers []string, err error) {
-	file, err := os.Open("/etc/resolv.conf")
-	if err != nil {
-		return
-	}
-	defer file.Close()
-	reader := bufio.NewReader(file)
-	lineBytes, _, err := reader.ReadLine()
-	for err == nil {
+    file, err := os.Open("/etc/resolv.conf")
+    if err != nil {
+        return
+    }
+    defer file.Close()
+    reader := bufio.NewReader(file)
+    lineBytes, _, err := reader.ReadLine()
+    for err == nil {
         line := string(lineBytes)
+        //remove comments
         commentIndex := strings.Index(line, "#")
         if commentIndex != -1 {
             line = line[:commentIndex]
         }
-		fields := strings.Fields(line)
-		if len(fields) >= 2 && fields[0] == "nameserver" {
-			servers = append(servers, fields[1])
-		}
-		lineBytes, _, err = reader.ReadLine()
-	}
+
+        fields := strings.Fields(line)
+        if len(fields) == 2 && fields[0] == "nameserver" {
+            servers = append(servers, fields[1])
+        }
+        lineBytes, _, err = reader.ReadLine()
+    }
     if err == io.EOF {
         err = nil
     }
-	return
+    return
+}
+
+func doForwardToResolver(resolverAddrs []string) {
+    _, err = remote.WriteToUDP(buf[:length], &remoteAddr)
+    if err != nil {
+        log.Panicln(err)
+        continue
+    }
+}
+func doReturnToClient() {
+    _, err = conn.WriteToUDP(buf[:length], client)
+    if err != nil {
+        log.Panicln(err)
+        continue
+    }
+}
+func doRecvFromResolver(conn *net.UDPConn) {
+    length, _, err = remote.ReadFromUDP(buf)
+    if err != nil {
+        log.Panicln(err)
+        continue
+    }
+}
+
+type RecvMsg struct {
+    addr net.UDPAddr
+    data []byte
 }
 
 func main() {
-    dnsServers, err := getDnsServer()
-    fmt.Println(dnsServers, err)
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-	addr := net.UDPAddr{Port: 53}
-	conn, err := net.ListenUDP("udp", &addr)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-    defer conn.Close()
-	buf := make([]byte, 65535)
+    //initialize log
+    log.SetOutput(os.Stdout)
+    log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-    //var remote net.UDPConn
-    localAddr := net.UDPAddr{Port:12345}
-    remote, err := net.ListenUDP("udp", &localAddr)
+    //initialize resolver addrs
+    dnsServers, err := getDnsServer()
     if err != nil {
-        fmt.Println(err)
+        log.Panicln(err)
         return
     }
-    var remoteAddr net.UDPAddr
-    remoteAddr.IP = net.ParseIP(dnsServers[0])
-    remoteAddr.Port = 53
-	for {
-		length, client, err := conn.ReadFromUDP(buf)
-		if err != nil {
-			fmt.Println(err)
+    var resolverAddrs []string
+    for _, dnsServer := range dnsServers {
+        resolverAddrs = append(resolverAddrs, dnsServer+":53")
+    }
+
+    //listen for service
+    addr := net.UDPAddr{Port: 53}
+    server, err := net.ListenUDP("udp", &addr)
+    if err != nil {
+        log.Panicln(err)
+        return
+    }
+    defer server.Close()
+
+    //initialize forward conn
+    forwardConns := make([]*net.UDPConn, FORWARD_PORT_NUM)
+    for i := 0; i < FORWARD_PORT_NUM; i++ {
+        forwardConn, err := net.ListenUDP("udp", &net.UDPAddr{})
+        if err != nil {
+            log.Panicln(err)
+            return
+        }
+        forwardConns[i] = forwardConn
+        go doRecvFromResolver(forwardConn)
+        defer forwardConn.Close()
+    }
+
+    go doForwardToResolver(resolverAddrs)
+
+    recvMsgChannel := make(chan RecvMsg, 10)
+    buf := make([]byte, 65535)
+    for {
+        length, client, err := conn.ReadFromUDP(buf)
+        if err != nil {
+            log.Println(err)
             continue
-		}
-        _,err = remote.WriteToUDP(buf[:length], &remoteAddr) 
-		if err != nil {
-			fmt.Println(err)
-            continue
-		}
-        length, _, err = conn.ReadFromUDP(buf)
-		if err != nil {
-			fmt.Println(err)
-            continue
-		}
-        _, err = conn.WriteToUDP(buf[:length], client)
-		if err != nil {
-			fmt.Println(err)
-            continue
-		}
-	}
-	fmt.Println(addr)
+        }
+        recvMsgChannel <- RecvMsg{addr: client, data: buf[:length]}
+    }
 }
