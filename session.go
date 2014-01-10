@@ -12,16 +12,16 @@ import (
 )
 
 type SessionKey struct {
-    name string
-    id   uint16
-    port uint16
+    name        string
+    id          uint16
+    forwardConn *net.UDPConn
+    resolver    string
 }
 
 type SessionValue struct {
-    name string
-    id   string
-    ip   net.IP
-    port uint16
+    name       string
+    id         uint16
+    clientAddr net.UDPAddr
 }
 
 type Session struct {
