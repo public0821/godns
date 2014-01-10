@@ -11,6 +11,7 @@ import (
 )
 
 const FORWARD_PORT_NUM = 5
+const MAX_BUF_LEN = 65535
 
 func getDnsServer() (servers []string, err error) {
     file, err := os.Open("/etc/resolv.conf")
@@ -40,25 +41,73 @@ func getDnsServer() (servers []string, err error) {
     return
 }
 
-func doForwardToResolver(resolverAddrs []string) {
-    _, err = remote.WriteToUDP(buf[:length], &remoteAddr)
-    if err != nil {
-        log.Panicln(err)
-        continue
+var session Session
+
+func doForwardToResolver(forwardConns []*net.UDPConn, resolverAddrs []string, recvMsgChannel chan RecvMsg) {
+    addrIndex := 0
+    connIndex := 0
+    for recvMsg := range recvMsgChannel {
+        addr, err := net.ResolveUDPAddr("udp", resolverAddrs[addrIndex])
+        if err != nil {
+            log.Println(err)
+            continue
+        }
+        conn := forwardConns[connIndex]
+        _, err = conn.WriteToUDP(recvMsg.data, addr)
+        if err != nil {
+            log.Println(err)
+            continue
+        }
+        connIndex += 1
+        if connIndex >= len(forwardConns) {
+            connIndex = 0
+        }
+        addrIndex += 1
+        if addrIndex >= len(resolverAddrs) {
+            addrIndex = 0
+        }
+
+        var key SessionKey
+        key.forwardConn = conn
+        key.name = "test"
+        key.id = 1
+
+        var value SessionValue
+        value.clientAddr = recvMsg.addr
+        value.id = 2
+        value.name = "test"
+
+        session.Lock()
+        session.buffer[key] = value
+        session.Unlock()
     }
 }
-func doReturnToClient() {
-    _, err = conn.WriteToUDP(buf[:length], client)
-    if err != nil {
-        log.Panicln(err)
-        continue
-    }
-}
-func doRecvFromResolver(conn *net.UDPConn) {
-    length, _, err = remote.ReadFromUDP(buf)
-    if err != nil {
-        log.Panicln(err)
-        continue
+
+func doRecvFromResolver(server, conn *net.UDPConn) {
+    buf := make([]byte, MAX_BUF_LEN)
+    for {
+        length, _, err := conn.ReadFromUDP(buf)
+        if err != nil {
+            log.Println(err)
+            continue
+        }
+        var key SessionKey
+        key.forwardConn = conn
+        key.name = "test"
+        key.id = 1
+
+        session.Lock()
+        value, ok := session.buffer[key]
+        if ok {
+            delete(session.buffer, key)
+        }
+        session.Unlock()
+
+        _, err = server.WriteToUDP(buf[:length], &value.clientAddr)
+        if err != nil {
+            log.Println(err)
+            continue
+        }
     }
 }
 
@@ -101,20 +150,20 @@ func main() {
             return
         }
         forwardConns[i] = forwardConn
-        go doRecvFromResolver(forwardConn)
+        go doRecvFromResolver(server, forwardConn)
         defer forwardConn.Close()
     }
 
-    go doForwardToResolver(resolverAddrs)
-
     recvMsgChannel := make(chan RecvMsg, 10)
+    go doForwardToResolver(forwardConns, resolverAddrs, recvMsgChannel)
+
     buf := make([]byte, 65535)
     for {
-        length, client, err := conn.ReadFromUDP(buf)
+        length, client, err := server.ReadFromUDP(buf)
         if err != nil {
             log.Println(err)
             continue
         }
-        recvMsgChannel <- RecvMsg{addr: client, data: buf[:length]}
+        recvMsgChannel <- RecvMsg{addr: *client, data: buf[:length]}
     }
 }
