@@ -1,23 +1,15 @@
 package dns
 
 import (
-	"fmt"
-	"net"
-	"testing"
+        "fmt"
+        "testing"
 )
 
-func TestTest(t *testing.T) {
-	var msg Message
-	msg.Hdr.Id = 100
-	//answers := make(RR[6])
-	var a A
-	a.Name = "test"
-	a.IPv4 = net.ParseIP("192.168.1.1")
-	msg.Answer = append(msg.Answer, a)
-	msg.Answer = append(msg.Answer, a)
-	fmt.Println(len(msg.Question))
-	fmt.Println(cap(msg.Question))
-	fmt.Println(msg)
-	t.Log("pass")
-	t.Log("aaapass")
+func TestPackUnpack(t *testing.T) {
+        fmt.Println("called")
+        data := []byte{103, 85, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 5, 98, 97, 105, 100, 117, 3, 99, 111, 109, 0, 0, 1, 0, 1, 0,
+0, 41, 16, 0, 0, 0, 0, 0, 0, 0}
+        var msg Message
+        fmt.Println(msg.Unpack(data))
+        fmt.Println(msg)
 }
