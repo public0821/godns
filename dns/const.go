@@ -1,8 +1,8 @@
 package dns
 
 const (
-	QR_REQUEST  uint16 = 0
-	QR_RESPONSE uint16 = 1
+	QR_REQUEST  uint8 = 0
+	QR_RESPONSE uint8 = 1
 
 	// valid RRHeader.Type and Question.Type
 	TYPE_None       uint16 = 0
@@ -124,4 +124,15 @@ const (
 	// There is no 3
 	OPCODE_NOTIFY = 4
 	OPCODE_UPDATE = 5
+)
+
+const (
+	_QUREY_RESPONSE      = 0x80
+	_OPCODE              = 0x78
+	_AUTH_ANSWER         = 0x04
+	_TRUNCATED           = 0x02
+	_RECURSION_DESIRED   = 0x01
+	_RECURSION_AVAILABLE = 0x80
+	_ZERO                = 0x70
+	_RCODE               = 0x0f
 )

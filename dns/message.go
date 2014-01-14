@@ -121,28 +121,18 @@ func (msg *Message) UnpackHeaderAndQuestion(data []byte) (offset int, err error)
 		err = errors.New("message data too short")
 		return
 	}
-	const (
-		_QUREY_RESPONSE      = 0x80
-		_OPCODE              = 0x78
-		_AUTH_ANSWER         = 0x04
-		_TRUNCATED           = 0x02
-		_RECURSION_DESIRED   = 0x01
-		_RECURSION_AVAILABLE = 0x80
-		_ZERO                = 0x70
-		_RCODE               = 0x08
-	)
 
 	//unpack message hearder
 	offset = 0
 	msg.Hdr.Id, offset = unpackUint16(data, offset)
 	msg.Hdr.QueryResponse = uint8(data[offset]) & _QUREY_RESPONSE
-	msg.Hdr.Opcode = uint8(data[offset]) & _OPCODE
+	msg.Hdr.Opcode = (uint8(data[offset]) & _OPCODE) >> 3
 	msg.Hdr.AuthAnswer = uint8(data[offset])&_AUTH_ANSWER == 1
 	msg.Hdr.Truncated = uint8(data[offset])&_TRUNCATED == 1
 	msg.Hdr.RecursionDesired = uint8(data[offset])&_RECURSION_DESIRED == 1
 	offset += 1
 	msg.Hdr.RecursionAvailable = uint8(data[offset])&_RECURSION_AVAILABLE == 1
-	msg.Hdr.Zero = uint8(data[offset]) & _ZERO
+	msg.Hdr.Zero = (uint8(data[offset]) & _ZERO) >> 4
 	msg.Hdr.Rcode = uint8(data[offset]) & _RCODE
 	offset += 1
 	msg.Hdr.QDCount, offset = unpackUint16(data, offset)
@@ -237,9 +227,15 @@ func unpackDomainName(data []byte, index int) (name string, offset int, err erro
 			name += "."
 			offset += labelLen
 		case 0xC0:
-			// pointer to somewhere else in msg.
+			if offset+1 > dataLen {
+				err = errors.New("out of range")
+				return
+			}
+			lablePtr := uint16(data[offset-1])<<10>>2 | uint16(data[offset])
+			offset++
+			// pointer to somewhere else in message.
 			// FIXME maybe there's an infinite loop.
-			if labelLen > dataLen {
+			if int(lablePtr) > dataLen {
 				err = errors.New("ptr out of range")
 				return
 			}
@@ -296,17 +292,80 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
 	hdr.Class, offset = unpackUint16(data, offset)
 	hdr.Ttl, offset = unpackUint32(data, offset)
 	hdr.RdLength, offset = unpackUint16(data, offset)
-	if hdr.Class != CLASS_INET && hdr.Type != TYPE_A {
+
+	if hdr.Class != CLASS_INET {
 		err = errors.New("unimplement")
 		return
 	}
-	if hdr.RdLength != IPV4_LEN {
-		err = errors.New("formart error")
+	switch hdr.Type {
+	case TYPE_A:
+		if hdr.RdLength != IPV4_LEN {
+			err = errors.New("formart error")
+			return
+		}
+		var a A
+		a.Hdr = hdr
+		a.IPv4 = net.IPv4(data[offset], data[offset+1], data[offset+2], data[offset+3])
+		offset += IPV4_LEN
+		rr = a
+		return
+	default:
+		err = errors.New("unimplement")
 		return
 	}
-	var a A
-	a.Hdr = hdr
-	a.IPv4 = net.IPv4(data[offset], data[offset+1], data[offset+2], data[offset+3])
-	offset += IPV4_LEN
+	return
+}
+
+func packUint16(number uint16, data []byte, index int) (offset int) {
+	data[index] = uint8(number >> 8)
+	data[index+1] = uint8(number)
+	offset = index + 2
+	return
+}
+
+func (message *Message) Pack(data []byte, needCompress bool) (length int, err error) {
+	//var compression map[string]int
+	//if needCompress {
+	//compression = make(map[string]int) // Compression pointer mappings
+	//} else {
+	//compression = nil
+	//}
+
+	length = 0
+	dataLen := len(data)
+	if dataLen < HEADER_LENGTH {
+		err = errors.New("too short")
+		return
+	}
+	length = packUint16(message.Hdr.Id, data, length)
+	if message.Hdr.QueryResponse == QR_RESPONSE {
+		data[length] |= _QUREY_RESPONSE
+	}
+	data[length] |= message.Hdr.Opcode << 4 >> 1
+	if message.Hdr.AuthAnswer {
+		data[length] |= _AUTH_ANSWER
+	}
+	if message.Hdr.Truncated {
+		data[length] |= _TRUNCATED
+	}
+	if message.Hdr.RecursionDesired {
+		data[length] |= _RECURSION_DESIRED
+	}
+	length++
+	if message.Hdr.RecursionAvailable {
+		data[length] |= _RECURSION_AVAILABLE
+	}
+	data[length] |= message.Hdr.Zero << 5 >> 1
+	data[length] |= message.Hdr.Rcode & _RCODE
+	length++
+
+	message.Hdr.QDCount = uint16(len(message.Question))
+	message.Hdr.ANCount = uint16(len(message.Answer))
+	message.Hdr.NSCount = uint16(len(message.Authority))
+	message.Hdr.ARCount = uint16(len(message.Additional))
+	length = packUint16(message.Hdr.QDCount, data, length)
+	length = packUint16(message.Hdr.ANCount, data, length)
+	length = packUint16(message.Hdr.NSCount, data, length)
+	length = packUint16(message.Hdr.ARCount, data, length)
 	return
 }
