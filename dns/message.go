@@ -81,14 +81,19 @@ type Question struct {
 //+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
 type RRHeader struct {
-	Name     string `dns:"cdomain-name"`
+	Name     string 
 	Type     uint16
 	Class    uint16
 	Ttl      uint32
 	RdLength uint16 // length of data after header
 }
 
+func(h *RRHeader)Header()(header *RRHeader){
+    return h
+}
+
 type RR interface {
+    Header()(*RRHeader)
 }
 
 type A struct {
@@ -269,13 +274,6 @@ func unpackQuestion(data []byte, index int, question *Question) (offset int, err
 	return
 }
 
-type RRBase struct {
-	Name     string `dns:"cdomain-name"`
-	Type     uint16
-	Class    uint16
-	Ttl      uint32
-	RdLength uint16 // length of data after header
-}
 
 func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
 	offset = index
@@ -404,3 +402,38 @@ func packQuestion(buf []byte, index int, question *Question) (offset int, err er
     offset = packUint16(question.Type, buf, offset)
     return
 }
+
+func packDomainName(name string, buf []byte, index int) (offset int, err error) {
+    bufLen := len(buf)
+    offset = index
+    if len(name) > MAX_DOMAIN_NAME_LEN {
+        err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN, name))
+        return
+    }
+    labels := strings.Split(name, ".")
+    for _, label := range labels {
+        labelLen := len(label)
+        if labelLen > MAX_DOMAIN_LABEL_LEN {
+            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
+            return
+        }
+        if labelLen+1 > bufLen-offset {
+            err = NewError("buffer too small to store " + name)
+            return
+        }
+        buf[offset] = uint8(labelLen)
+        copy(buf[offset+1:], label)
+        offset += 1 + labelLen
+    }
+    buf[offset] = 0
+    offset++
+    return
+}
+
+func packRR(rr *RR, buf []byte, index int) (offset int, err error) {
+    offset = index
+    header := rr.Header()
+    offset, err = packDomainName(rr.
+
+}
+
