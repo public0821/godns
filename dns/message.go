@@ -54,7 +54,7 @@ type Header struct {
 //|                     QCLASS                    |
 //+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 type Question struct {
-	Name  string `dns:"cdomain-name"` // "cdomain-name" specifies encoding (and may be compressed)
+	Name  string
 	Type  uint16
 	Class uint16
 }
@@ -368,4 +368,39 @@ func (message *Message) Pack(data []byte, needCompress bool) (length int, err er
 	length = packUint16(message.Hdr.NSCount, data, length)
 	length = packUint16(message.Hdr.ARCount, data, length)
 	return
+}
+
+const (
+    MAX_DOMAIN_NAME_LEN  = 255
+    MAX_DOMAIN_LABEL_LEN = 63
+    MAX_UDP_MESSAGE_LEN  = 512
+)
+
+func packQuestion(buf []byte, index int, question *Question) (offset int, err error) {
+    bufLen := len(buf)
+    offset = index
+    if len(question.Name) > MAX_DOMAIN_NAME_LEN {
+        err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN, question.Name))
+        return
+    }
+    labels := strings.Split(question.Name, ".")
+    for _, label := range labels {
+        labelLen := len(label)
+        if labelLen > MAX_DOMAIN_LABEL_LEN {
+            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
+            return
+        }
+        if labelLen+1 > bufLen-offset {
+            err = NewError("buffer too small to store " + question.Name)
+            return
+        }
+        buf[offset] = uint8(labelLen)
+        copy(buf[offset+1:], label)
+        offset += 1 + labelLen
+    }
+    buf[offset] = 0
+    offset++
+    offset = packUint16(question.Type, buf, offset)
+    offset = packUint16(question.Type, buf, offset)
+    return
 }
