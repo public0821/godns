@@ -1,4 +1,10 @@
-package dns
+package main
+
+const (
+	MAX_DOMAIN_NAME_LEN  = 255
+	MAX_DOMAIN_LABEL_LEN = 63
+	MAX_UDP_MESSAGE_LEN  = 512
+)
 
 const (
 	QR_REQUEST  uint8 = 0

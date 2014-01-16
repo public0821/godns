@@ -1,8 +1,10 @@
-package dns
+package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 )
 
 //                              1  1  1  1  1  1
@@ -81,23 +83,26 @@ type Question struct {
 //+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
 type RRHeader struct {
-	Name     string 
+	Name     string
 	Type     uint16
 	Class    uint16
 	Ttl      uint32
 	RdLength uint16 // length of data after header
 }
 
-func(h *RRHeader)Header()(header *RRHeader){
-    return h
+type RR interface {
+	Header() *RRHeader
+}
+type rrBase struct {
+	Hdr RRHeader
 }
 
-type RR interface {
-    Header()(*RRHeader)
+func (h *rrBase) Header() (header *RRHeader) {
+	return &h.Hdr
 }
 
 type A struct {
-	Hdr  RRHeader
+	rrBase
 	IPv4 net.IP
 }
 
@@ -274,7 +279,6 @@ func unpackQuestion(data []byte, index int, question *Question) (offset int, err
 	return
 }
 
-
 func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
 	offset = index
 	var hdr RRHeader
@@ -301,7 +305,7 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
 			err = errors.New("formart error")
 			return
 		}
-		var a A
+		a := new(A)
 		a.Hdr = hdr
 		a.IPv4 = net.IPv4(data[offset], data[offset+1], data[offset+2], data[offset+3])
 		offset += IPV4_LEN
@@ -368,72 +372,51 @@ func (message *Message) Pack(data []byte, needCompress bool) (length int, err er
 	return
 }
 
-const (
-    MAX_DOMAIN_NAME_LEN  = 255
-    MAX_DOMAIN_LABEL_LEN = 63
-    MAX_UDP_MESSAGE_LEN  = 512
-)
-
 func packQuestion(buf []byte, index int, question *Question) (offset int, err error) {
-    bufLen := len(buf)
-    offset = index
-    if len(question.Name) > MAX_DOMAIN_NAME_LEN {
-        err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN, question.Name))
-        return
-    }
-    labels := strings.Split(question.Name, ".")
-    for _, label := range labels {
-        labelLen := len(label)
-        if labelLen > MAX_DOMAIN_LABEL_LEN {
-            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
-            return
-        }
-        if labelLen+1 > bufLen-offset {
-            err = NewError("buffer too small to store " + question.Name)
-            return
-        }
-        buf[offset] = uint8(labelLen)
-        copy(buf[offset+1:], label)
-        offset += 1 + labelLen
-    }
-    buf[offset] = 0
-    offset++
-    offset = packUint16(question.Type, buf, offset)
-    offset = packUint16(question.Type, buf, offset)
-    return
+	offset, err = packDomainName(question.Name, buf, index)
+	if err != nil {
+		return
+	}
+	if 4 > len(buf)-offset {
+		err = NewError("buffer too small to store question type and class")
+		return
+	}
+	offset = packUint16(question.Type, buf, offset)
+	offset = packUint16(question.Class, buf, offset)
+	return
 }
 
 func packDomainName(name string, buf []byte, index int) (offset int, err error) {
-    bufLen := len(buf)
-    offset = index
-    if len(name) > MAX_DOMAIN_NAME_LEN {
-        err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN, name))
-        return
-    }
-    labels := strings.Split(name, ".")
-    for _, label := range labels {
-        labelLen := len(label)
-        if labelLen > MAX_DOMAIN_LABEL_LEN {
-            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
-            return
-        }
-        if labelLen+1 > bufLen-offset {
-            err = NewError("buffer too small to store " + name)
-            return
-        }
-        buf[offset] = uint8(labelLen)
-        copy(buf[offset+1:], label)
-        offset += 1 + labelLen
-    }
-    buf[offset] = 0
-    offset++
-    return
+	bufLen := len(buf)
+	offset = index
+	if len(name) > MAX_DOMAIN_NAME_LEN {
+		err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN, name))
+		return
+	}
+	labels := strings.Split(name, ".")
+	for _, label := range labels {
+		labelLen := len(label)
+		if labelLen > MAX_DOMAIN_LABEL_LEN {
+			err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
+			return
+		}
+		if labelLen+1 > bufLen-offset {
+			err = NewError("buffer too small to store " + name)
+			return
+		}
+		buf[offset] = uint8(labelLen)
+		copy(buf[offset+1:], label)
+		offset += 1 + labelLen
+	}
+	buf[offset] = 0
+	offset++
+	return
 }
 
 func packRR(rr *RR, buf []byte, index int) (offset int, err error) {
-    offset = index
-    header := rr.Header()
-    offset, err = packDomainName(rr.
+	offset = index
+	//header := rr.Header()
+	//offset, err = packDomainName(rr.
 
+	return
 }
-
