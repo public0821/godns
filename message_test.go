@@ -1,12 +1,17 @@
 package main
 
 import (
-    "fmt"
+    //"fmt"
     "net"
     "testing"
 )
 
 func TestPackUnpack(t *testing.T) {
+    testPackUnpack(t, false)
+    testPackUnpack(t, true)
+}
+
+func testPackUnpack(t *testing.T, compression bool) {
     a := &RRA{}
     a.Hdr.Class = CLASS_INET
     a.Hdr.Type = TYPE_A
@@ -32,18 +37,45 @@ func TestPackUnpack(t *testing.T) {
 
     msg.Question = append(msg.Question, question)
     msg.Answer = append(msg.Answer, a)
-    fmt.Println(msg.String())
+    //fmt.Println(msg.String())
     buf := make([]byte, 1024)
-    length, err := msg.Pack(buf, false)
+    length, err := msg.Pack(buf, compression)
     if err != nil {
-        fmt.Println(err)
+        t.Error(err)
         return
     }
-    fmt.Println(buf[:length])
-    //data := []byte{103, 85, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 5, 98, 97, 105
-, 100, 117, 3, 99, 111, 109, 0, 0, 1, 0, 1, 0,
-    //0, 41, 16, 0, 0, 0, 0, 0, 0, 0}
-    //var msg Message
-    //fmt.Println(msg.Unpack(data))
     //fmt.Println(msg)
+    //fmt.Println(length, buf[:length])
+    var newMsg Message
+    err = newMsg.UnpackAll(buf[:length])
+    if err != nil {
+        t.Error(err)
+        return
+    }
+    //fmt.Println(newMsg)
+    if msg.Hdr != newMsg.Hdr {
+        t.Error("msg.Hdr != newMsg.Hdr")
+    }
+    for i, q := range msg.Question {
+        if q != newMsg.Question[i] {
+            //fmt.Println(q)
+            //fmt.Println(newMsg.Question[i])
+            t.Error("msg.Question != newMsg.Question")
+        }
+    }
+    for i, rr := range msg.Answer {
+        if rr.String() != newMsg.Answer[i].String() {
+            t.Error("msg.Answer != newMsg.Answer")
+        }
+    }
+    for i, rr := range msg.Authority {
+        if rr.String() != newMsg.Authority[i].String() {
+            t.Error("msg.Authority != newMsg.Authority")
+        }
+    }
+    for i, rr := range msg.Additional {
+        if rr.String() != newMsg.Additional[i].String() {
+            t.Error("msg.Additional != newMsg.Additional")
+        }
+    }
 }
