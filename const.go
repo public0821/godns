@@ -277,12 +277,14 @@ func reverseInt16(m map[uint16]string) map[string]uint16 {
     return n
 }
 
+
 // Reverse, needed for string parsing.
-var StringToTYPE_ = reverseInt16(TypeToString)
-var StringToCLASS_ = reverseInt16(ClassToString)
+var StringToTYPE = reverseInt16(TypeToString)
+var StringToCLASS = reverseInt16(ClassToString)
 
 // Map of opcodes strings.
 var StringToOpcode = reverseInt8(OpcodeToString)
 
 // Map of rcodes strings.
 var StringToRcode = reverseInt8(RcodeToString)
+
