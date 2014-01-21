@@ -7,6 +7,8 @@ import (
     "strings"
 )
 
+const MAX_COMPRESSION_DEPTH = 5
+
 //                              1  1  1  1  1  1
 //0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
 //+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
@@ -38,10 +40,10 @@ type Header struct {
     RecursionAvailable bool
     Zero               uint8
     Rcode              uint8
-    QDCount            uint16
-    ANCount            uint16
-    NSCount            uint16
-    ARCount            uint16
+    QDCount            uint16 //Don't set this field manually
+    ANCount            uint16 //Don't set this field manually
+    NSCount            uint16 //Don't set this field manually
+    ARCount            uint16 //Don't set this field manually
 }
 
 //                              1  1  1  1  1  1
@@ -59,6 +61,13 @@ type Question struct {
     Name  string
     Type  uint16
     Class uint16
+}
+
+func (q *Question) String() (text string) {
+    text += fmt.Sprintf("Name:\t%s\n", q.Name)
+    text += fmt.Sprintf("Type:\t%s\n", TypeToString[q.Type])
+    text += fmt.Sprintf("Class:\t%s\n", ClassToString[q.Class])
+    return
 }
 
 //                              1  1  1  1  1  1
@@ -87,12 +96,23 @@ type RRHeader struct {
     Type     uint16
     Class    uint16
     Ttl      uint32
-    RdLength uint16 // length of data after header
+    RDLength uint16 //Don't set this field manually
+}
+
+func (h *RRHeader) String() (text string) {
+    text += fmt.Sprintf("Name:\t%s\n", h.Name)
+    text += fmt.Sprintf("Type:\t%s\n", TypeToString[h.Type])
+    text += fmt.Sprintf("Class:\t%s\n", ClassToString[h.Class])
+    text += fmt.Sprintf("Ttl:\t%d\n", h.Ttl)
+    text += fmt.Sprintf("RDLength:\t%d\n", h.RDLength)
+    return
 }
 
 type RR interface {
     Header() *RRHeader
-    Pack(buf []byte, index int) (offset int, err error)
+    PackRData(buf []byte, index int) (offset int, err error)
+    String() string
+    //RDataLength() int
 }
 
 type rrBase struct {
@@ -108,9 +128,21 @@ type RRA struct {
     IPv4 net.IP
 }
 
-func (a *RRA) Pack(buf []byte, index int) (offset int, err error) {
+func (a *RRA) PackRData(buf []byte, index int) (offset int, err error) {
+    copy(buf[index:], a.IPv4.To4())
+    offset = index + IPV4_LEN
     return
 }
+
+func (a *RRA) String() (text string) {
+    text += a.Hdr.String()
+    text += fmt.Sprintf("IPv4:\t%s\n", a.IPv4.String())
+    return
+}
+
+//func (a *RRA) RDataLength() int {
+//return IPV4_LEN
+//}
 
 //+---------------------+
 //|        Header       |
@@ -146,7 +178,22 @@ func (msg *Message) String() (text string) {
     text += fmt.Sprintf("ANCount:\t%d\n", msg.Hdr.ANCount)
     text += fmt.Sprintf("NSCount:\t%d\n", msg.Hdr.NSCount)
     text += fmt.Sprintf("ARCount:\t%d\n", msg.Hdr.ARCount)
-    text += "---QUERY---\n"
+    for index, question := range msg.Question {
+        text += fmt.Sprintf("---QUERY(%d)---\n", index+1)
+        text += question.String()
+    }
+    for index, answer := range msg.Answer {
+        text += fmt.Sprintf("---ANSWER(%d)---\n", index+1)
+        text += answer.String()
+    }
+    for index, ns := range msg.Authority {
+        text += fmt.Sprintf("---AUTHORITH(%d)---\n", index+1)
+        text += ns.String()
+    }
+    for index, additional := range msg.Additional {
+        text += fmt.Sprintf("---ADDITIONAL(%d)---\n", index+1)
+        text += additional.String()
+    }
     return
 }
 
@@ -160,13 +207,13 @@ func (msg *Message) UnpackHeaderAndQuestion(data []byte) (offset int, err error)
     //unpack message hearder
     offset = 0
     msg.Hdr.Id, offset = unpackUint16(data, offset)
-    msg.Hdr.QueryResponse = uint8(data[offset]) & _QUREY_RESPONSE
+    msg.Hdr.QueryResponse = (uint8(data[offset]) & _QUREY_RESPONSE) >> 7
     msg.Hdr.Opcode = (uint8(data[offset]) & _OPCODE) >> 3
-    msg.Hdr.AuthAnswer = uint8(data[offset])&_AUTH_ANSWER == 1
-    msg.Hdr.Truncated = uint8(data[offset])&_TRUNCATED == 1
-    msg.Hdr.RecursionDesired = uint8(data[offset])&_RECURSION_DESIRED == 1
+    msg.Hdr.AuthAnswer = uint8(data[offset])&_AUTH_ANSWER != 0
+    msg.Hdr.Truncated = uint8(data[offset])&_TRUNCATED != 0
+    msg.Hdr.RecursionDesired = uint8(data[offset])&_RECURSION_DESIRED != 0
     offset += 1
-    msg.Hdr.RecursionAvailable = uint8(data[offset])&_RECURSION_AVAILABLE == 1
+    msg.Hdr.RecursionAvailable = uint8(data[offset])&_RECURSION_AVAILABLE != 0
     msg.Hdr.Zero = (uint8(data[offset]) & _ZERO) >> 4
     msg.Hdr.Rcode = uint8(data[offset]) & _RCODE
     offset += 1
@@ -224,7 +271,7 @@ func (msg *Message) UnpackAll(data []byte) (err error) {
 
 func unpackUint32(data []byte, index int) (value uint32, offset int) {
     value = uint32(data[index])<<24 | uint32(data[index+1])<<16 | uint32(data[index+2])<<8 |
-uint32(data[index+3])
+        uint32(data[index+3])
     offset = index + 4
     return
 }
@@ -234,7 +281,7 @@ func unpackUint16(data []byte, index int) (value uint16, offset int) {
     return
 }
 
-func unpackDomainName(data []byte, index int) (name string, offset int, err error) {
+func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset int, err error) {
     dataLen := len(data)
     offset = index
     for {
@@ -252,6 +299,8 @@ func unpackDomainName(data []byte, index int) (name string, offset int, err erro
                     name = "."
                     return
                 } else {
+                    //remove the last dot
+                    name = name[:len(name)-1]
                     return
                 }
             }
@@ -275,7 +324,11 @@ func unpackDomainName(data []byte, index int) (name string, offset int, err erro
                 err = errors.New("ptr out of range")
                 return
             }
-            tempName, _, tempErr := unpackDomainName(data, labelLen)
+            if maxDepth == 0 {
+                err = errors.New("too many ptr")
+                return
+            }
+            tempName, _, tempErr := unpackDomainName(data, labelLen, maxDepth-1)
             if tempErr != nil {
                 return
             }
@@ -292,7 +345,7 @@ func unpackDomainName(data []byte, index int) (name string, offset int, err erro
 
 func unpackQuestion(data []byte, index int, question *Question) (offset int, err error) {
     offset = index
-    question.Name, offset, err = unpackDomainName(data, offset)
+    question.Name, offset, err = unpackDomainName(data, offset, MAX_COMPRESSION_DEPTH)
     if err != nil {
         return
     }
@@ -308,7 +361,7 @@ func unpackQuestion(data []byte, index int, question *Question) (offset int, err
 func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
     offset = index
     var hdr RRHeader
-    hdr.Name, offset, err = unpackDomainName(data, offset)
+    hdr.Name, offset, err = unpackDomainName(data, offset, MAX_COMPRESSION_DEPTH)
     if err != nil {
         return
     }
@@ -319,7 +372,7 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
     hdr.Type, offset = unpackUint16(data, offset)
     hdr.Class, offset = unpackUint16(data, offset)
     hdr.Ttl, offset = unpackUint32(data, offset)
-    hdr.RdLength, offset = unpackUint16(data, offset)
+    hdr.RDLength, offset = unpackUint16(data, offset)
 
     if hdr.Class != CLASS_INET {
         err = errors.New("unimplement")
@@ -327,7 +380,7 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
     }
     switch hdr.Type {
     case TYPE_A:
-        if hdr.RdLength != IPV4_LEN {
+        if hdr.RDLength != IPV4_LEN {
             err = errors.New("formart error")
             return
         }
@@ -360,12 +413,10 @@ func packUint32(number uint32, data []byte, index int) (offset int) {
 }
 
 func (message *Message) Pack(data []byte, needCompress bool) (length int, err error) {
-    //var compression map[string]int
-    //if needCompress {
-    //compression = make(map[string]int) // Compression pointer mappings
-    //} else {
-    //compression = nil
-    //}
+    var compression map[string]int
+    if needCompress {
+        compression = make(map[string]int) // Compression pointer mappings
+    }
 
     length = 0
     dataLen := len(data)
@@ -403,11 +454,29 @@ func (message *Message) Pack(data []byte, needCompress bool) (length int, err er
     length = packUint16(message.Hdr.ANCount, data, length)
     length = packUint16(message.Hdr.NSCount, data, length)
     length = packUint16(message.Hdr.ARCount, data, length)
+    for _, question := range message.Question {
+        length, err = packQuestion(data, length, &question, compression)
+        if err != nil {
+            return
+        }
+    }
+    length, err = packRRs(message.Answer, data, length, compression)
+    if err != nil {
+        return
+    }
+    //length, err = packRRs(message.Authority, data, length)
+    //if err != nil {
+    //return
+    //}
+    //length, err = packRRs(message.Additional, data, length)
+    //if err != nil {
+    //return
+    //}
     return
 }
 
-func packQuestion(buf []byte, index int, question *Question) (offset int, err error) {
-    offset, err = packDomainName(question.Name, buf, index)
+func packQuestion(buf []byte, index int, question *Question, compression map[string]int) (offset int, err error) {
+    offset, err = packDomainName(question.Name, buf, index, compression)
     if err != nil {
         return
     }
@@ -420,20 +489,19 @@ func packQuestion(buf []byte, index int, question *Question) (offset int, err er
     return
 }
 
-func packDomainName(name string, buf []byte, index int) (offset int, err error) {
+func packDomainName(name string, buf []byte, index int, compression map[string]int) (offset int, err error) {
     bufLen := len(buf)
     offset = index
     if len(name) > MAX_DOMAIN_NAME_LEN {
         err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN,
-name))
+            name))
         return
     }
     labels := strings.Split(name, ".")
     for _, label := range labels {
         labelLen := len(label)
         if labelLen > MAX_DOMAIN_LABEL_LEN {
-            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL
-_LEN, label))
+            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
             return
         }
         if labelLen+1 > bufLen-offset {
@@ -449,18 +517,24 @@ _LEN, label))
     return
 }
 
-//Type     uint16
-//Class    uint16
-//Ttl      uint32
-//RdLength uint16 // length of data after header
-func packRR(rr RR, buf []byte, index int) (offset int, err error) {
+func packRRs(rrs []RR, buf []byte, index int, compression map[string]int) (offset int, err error) {
+    offset = index
+    for _, rr := range rrs {
+        offset, err = packRR(rr, buf, offset, compression)
+        if err != nil {
+            return
+        }
+    }
+    return
+}
+func packRR(rr RR, buf []byte, index int, compression map[string]int) (offset int, err error) {
     offset = index
     header := rr.Header()
-    offset, err = packDomainName(header.Name, buf, offset)
+    offset, err = packDomainName(header.Name, buf, offset, compression)
     if err != nil {
         return
     }
-    //10 = sizeof(Type)+sizeof(Class)+sizeof(Ttl)+sizeof(RdLength)
+    //10 = sizeof(Type)+sizeof(Class)+sizeof(Ttl)+sizeof(RDLength)
     if 10 > len(buf)-offset {
         err = NewError("buffer too small to store RR")
         return
@@ -469,11 +543,11 @@ func packRR(rr RR, buf []byte, index int) (offset int, err error) {
     offset = packUint16(header.Class, buf, offset)
     offset = packUint32(header.Ttl, buf, offset)
     start := offset + 2
-    offset, err = rr.Pack(buf, start)
+    offset, err = rr.PackRData(buf, start)
     if err != nil {
         return
     }
-    header.RdLength = uint16(offset - start)
-    packUint16(header.RdLength, buf, start-2)
+    header.RDLength = uint16(offset - start)
+    packUint16(header.RDLength, buf, start-2)
     return
 }
