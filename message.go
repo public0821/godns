@@ -291,7 +291,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
         }
         labelLen := int(data[offset])
         offset++
-        switch labelLen & 0xC0 {
+        switch uint8(labelLen) & 0xC0 {
         case 0x00:
             // end of name
             if labelLen == 0x00 {
@@ -319,7 +319,6 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
             lablePtr := uint16(data[offset-1])<<10>>2 | uint16(data[offset])
             offset++
             // pointer to somewhere else in message.
-            // FIXME maybe there's an infinite loop.
             if int(lablePtr) > dataLen {
                 err = errors.New("ptr out of range")
                 return
@@ -328,7 +327,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
                 err = errors.New("too many ptr")
                 return
             }
-            tempName, _, tempErr := unpackDomainName(data, labelLen, maxDepth-1)
+            tempName, _, tempErr := unpackDomainName(data, int(lablePtr), maxDepth-1)
             if tempErr != nil {
                 return
             }
@@ -416,6 +415,8 @@ func (message *Message) Pack(data []byte, needCompress bool) (length int, err er
     var compression map[string]int
     if needCompress {
         compression = make(map[string]int) // Compression pointer mappings
+    } else {
+        compression = nil
     }
 
     length = 0
@@ -497,8 +498,28 @@ func packDomainName(name string, buf []byte, index int, compression map[string]i
             name))
         return
     }
-    labels := strings.Split(name, ".")
-    for _, label := range labels {
+    tempName := name
+    for {
+        if len(tempName) == 0 {
+            break
+        }
+        if compression != nil {
+            //need compress
+            if ptr, ok := compression[tempName]; ok {
+                offset = packUint16(uint16(ptr), buf, offset)
+                buf[offset-2] |= 0xC0
+                return
+            }
+        }
+        dotIndex := strings.Index(tempName, ".")
+        var label string
+        if dotIndex == -1 {
+            label = tempName
+            tempName = ""
+        } else {
+            label = tempName[:dotIndex]
+            tempName = tempName[dotIndex+1:]
+        }
         labelLen := len(label)
         if labelLen > MAX_DOMAIN_LABEL_LEN {
             err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
@@ -508,10 +529,29 @@ func packDomainName(name string, buf []byte, index int, compression map[string]i
             err = NewError("buffer too small to store " + name)
             return
         }
+        if compression != nil {
+            compression[label+"."+tempName] = offset
+        }
         buf[offset] = uint8(labelLen)
-        copy(buf[offset+1:], label)
-        offset += 1 + labelLen
+        offset++
+        copy(buf[offset:], label)
+        offset += labelLen
     }
+    //labels := strings.Split(name, ".")
+    //for _, label := range labels {
+    //labelLen := len(label)
+    //if labelLen > MAX_DOMAIN_LABEL_LEN {
+    //err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
+    //return
+    //}
+    //if labelLen+1 > bufLen-offset {
+    //err = NewError("buffer too small to store " + name)
+    //return
+    //}
+    //buf[offset] = uint8(labelLen)
+    //copy(buf[offset+1:], label)
+    //offset += 1 + labelLen
+    //}
     buf[offset] = 0
     offset++
     return
