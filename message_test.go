@@ -46,6 +46,7 @@ func testPackUnpack(t *testing.T, compression bool) {
     }
     //fmt.Println(msg)
     //fmt.Println(length, buf[:length])
+    //t.Log(length, buf[:length])
     var newMsg Message
     err = newMsg.UnpackAll(buf[:length])
     if err != nil {
@@ -54,27 +55,32 @@ func testPackUnpack(t *testing.T, compression bool) {
     }
     //fmt.Println(newMsg)
     if msg.Hdr != newMsg.Hdr {
+        t.Log(msg.Hdr, newMsg.Hdr)
         t.Error("msg.Hdr != newMsg.Hdr")
     }
     for i, q := range msg.Question {
         if q != newMsg.Question[i] {
             //fmt.Println(q)
             //fmt.Println(newMsg.Question[i])
+            t.Log(q, newMsg.Question[i])
             t.Error("msg.Question != newMsg.Question")
         }
     }
     for i, rr := range msg.Answer {
         if rr.String() != newMsg.Answer[i].String() {
+            t.Log(rr, newMsg.Answer[i])
             t.Error("msg.Answer != newMsg.Answer")
         }
     }
     for i, rr := range msg.Authority {
         if rr.String() != newMsg.Authority[i].String() {
+            t.Log(rr, newMsg.Authority[i])
             t.Error("msg.Authority != newMsg.Authority")
         }
     }
     for i, rr := range msg.Additional {
         if rr.String() != newMsg.Additional[i].String() {
+            t.Log(rr, newMsg.Additional[i])
             t.Error("msg.Additional != newMsg.Additional")
         }
     }
