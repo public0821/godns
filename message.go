@@ -1,9 +1,7 @@
 package main
 
 import (
-    "errors"
     "fmt"
-    "net"
     "strings"
 )
 
@@ -70,76 +68,6 @@ func (q *Question) String() (text string) {
     return
 }
 
-//                              1  1  1  1  1  1
-//0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//|                                               |
-///                                               /
-///                      NAME                     /
-//|                                               |
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//|                      TYPE                     |
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//|                     CLASS                     |
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//|                      TTL                      |
-//|                                               |
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//|                   RDLENGTH                    |
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
-///                     RDATA                     /
-///                                               /
-//+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-
-type RRHeader struct {
-    Name     string
-    Type     uint16
-    Class    uint16
-    Ttl      uint32
-    RDLength uint16 //Don't set this field manually
-}
-
-func (h *RRHeader) String() (text string) {
-    text += fmt.Sprintf("Name:\t%s\n", h.Name)
-    text += fmt.Sprintf("Type:\t%s\n", TypeToString[h.Type])
-    text += fmt.Sprintf("Class:\t%s\n", ClassToString[h.Class])
-    text += fmt.Sprintf("Ttl:\t%d\n", h.Ttl)
-    text += fmt.Sprintf("RDLength:\t%d\n", h.RDLength)
-    return
-}
-
-type RR interface {
-    Header() *RRHeader
-    PackRData(buf []byte, index int) (offset int, err error)
-    String() string
-    //RDataLength() int
-}
-
-type rrBase struct {
-    Hdr RRHeader
-}
-
-func (h *rrBase) Header() (header *RRHeader) {
-    return &h.Hdr
-}
-
-type RRA struct {
-    rrBase
-    IPv4 net.IP
-}
-
-func (a *RRA) PackRData(buf []byte, index int) (offset int, err error) {
-    copy(buf[index:], a.IPv4.To4())
-    offset = index + IPV4_LEN
-    return
-}
-
-func (a *RRA) String() (text string) {
-    text += a.Hdr.String()
-    text += fmt.Sprintf("IPv4:\t%s\n", a.IPv4.String())
-    return
-}
-
 //func (a *RRA) RDataLength() int {
 //return IPV4_LEN
 //}
@@ -200,7 +128,7 @@ func (msg *Message) String() (text string) {
 // Unpack a binary message to a Msg structure.
 func (msg *Message) UnpackHeaderAndQuestion(data []byte) (offset int, err error) {
     if len(data) < HEADER_LENGTH {
-        err = errors.New("message data too short")
+        err = NewError("message data too short")
         return
     }
 
@@ -263,7 +191,7 @@ func (msg *Message) UnpackAll(data []byte) (err error) {
         }
     }
     if offset != len(data) {
-        err = errors.New("message data too long")
+        err = NewError("message data too long")
         return
     }
     return nil
@@ -286,7 +214,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
     offset = index
     for {
         if offset+1 > dataLen {
-            err = errors.New("out of range")
+            err = NewError("out of range")
             return
         }
         labelLen := int(data[offset])
@@ -305,7 +233,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
                 }
             }
             if offset+labelLen > dataLen {
-                err = errors.New("out of range")
+                err = NewError("out of range")
                 return
             }
             name += string(data[offset : offset+labelLen])
@@ -313,18 +241,18 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
             offset += labelLen
         case 0xC0:
             if offset+1 > dataLen {
-                err = errors.New("out of range")
+                err = NewError("out of range")
                 return
             }
             lablePtr := uint16(data[offset-1])<<10>>2 | uint16(data[offset])
             offset++
             // pointer to somewhere else in message.
             if int(lablePtr) > dataLen {
-                err = errors.New("ptr out of range")
+                err = NewError("ptr out of range")
                 return
             }
             if maxDepth == 0 {
-                err = errors.New("too many ptr")
+                err = NewError("too many ptr")
                 return
             }
             tempName, _, tempErr := unpackDomainName(data, int(lablePtr), maxDepth-1)
@@ -335,7 +263,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
             return
         default:
             // 0x80 and 0x40 are reserved
-            err = errors.New("fomart error")
+            err = NewError("fomart error")
             return
         }
     }
@@ -349,7 +277,7 @@ func unpackQuestion(data []byte, index int, question *Question) (offset int, err
         return
     }
     if offset+4 > len(data) {
-        err = errors.New("out of range")
+        err = NewError("out of range")
         return
     }
     question.Type, offset = unpackUint16(data, offset)
@@ -365,7 +293,7 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
         return
     }
     if offset+10 > len(data) {
-        err = errors.New("out of range")
+        err = NewError("out of range")
         return
     }
     hdr.Type, offset = unpackUint16(data, offset)
@@ -374,25 +302,16 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
     hdr.RDLength, offset = unpackUint16(data, offset)
 
     if hdr.Class != CLASS_INET {
-        err = errors.New("unimplement")
+        err = NewError("unimplement")
         return
     }
-    switch hdr.Type {
-    case TYPE_A:
-        if hdr.RDLength != IPV4_LEN {
-            err = errors.New("formart error")
-            return
-        }
-        a := new(RRA)
-        a.Hdr = hdr
-        a.IPv4 = net.IPv4(data[offset], data[offset+1], data[offset+2], data[offset+3])
-        offset += IPV4_LEN
-        rr = a
-        return
-    default:
-        err = errors.New("unimplement")
+
+    rr, err = RRNew(hdr.Type)
+    if err != nil {
         return
     }
+    rr.SetHeader(&hdr)
+    offset, err = rr.UnpackRData(data, offset)
     return
 }
 
@@ -422,7 +341,7 @@ func (message *Message) Pack(data []byte, needCompress bool) (length int, err er
     length = 0
     dataLen := len(data)
     if dataLen < HEADER_LENGTH {
-        err = errors.New("too short")
+        err = NewError("too short")
         return
     }
     length = packUint16(message.Hdr.Id, data, length)
