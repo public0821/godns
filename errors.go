@@ -1,4 +1,4 @@
-package main
+package errors
 
 import (
     "fmt"
@@ -16,7 +16,7 @@ func wrapperErr(text string) (output string) {
     return
 }
 
-func NewError(text string) (err error) {
+func New(text string) (err error) {
     //buf := make([]byte, 1204)
     //length := runtime.Stack(buf, false)
     errImpl := new(dnsError)
