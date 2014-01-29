@@ -22,6 +22,7 @@ type SessionValue struct {
     //        name       string
     id         uint16
     clientAddr net.UDPAddr
+    time       int64
 }
 
 type Session struct {
