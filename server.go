@@ -3,6 +3,7 @@ package main
 import (
     //"./dns"
     "bufio"
+    "github.com/public0821/dnserver/db"
     "io"
     "log"
     "math/rand"
@@ -14,37 +15,23 @@ import (
 
 const FORWARD_PORT_NUM = 5
 const MAX_BUF_LEN = 65535
-
-func getDnsServer() (servers []string, err error) {
-    file, err := os.Open("/etc/resolv.conf")
-    if err != nil {
-        return
-    }
-    defer file.Close()
-    reader := bufio.NewReader(file)
-    lineBytes, _, err := reader.ReadLine()
-    for err == nil {
-        line := string(lineBytes)
-        //remove comments
-        commentIndex := strings.Index(line, "#")
-        if commentIndex != -1 {
-            line = line[:commentIndex]
-        }
-
-        fields := strings.Fields(line)
-        if len(fields) == 2 && fields[0] == "nameserver" {
-            servers = append(servers, fields[1])
-        }
-        lineBytes, _, err = reader.ReadLine()
-    }
-    if err == io.EOF {
-        err = nil
-    }
-    return
-}
+const SESSION_TIMEOUT = 10
 
 var gsession Session
-var grecordManager RecordManager
+
+func doCleanTimeoutSession() {
+    for {
+        now := time.Now().Unix()
+        gsession.Lock()
+        for key, value := range gsession.buffer {
+            if now-value.time >= SESSION_TIMEOUT {
+                delete(gsession.buffer, key)
+            }
+        }
+        gsession.Unlock()
+        time.Sleep(time.Second * (SESSION_TIMEOUT / 2))
+    }
+}
 
 func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resolverAddrs []string, recvMsgChannel chan RecvMsg) {
     buf := make([]byte, MAX_BUF_LEN)
@@ -62,18 +49,19 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
         }
         //check whether the domain name is in record manager
         question := &msg.Question[0]
-        var record Record
-        record.Name = question.Name
-        record.Class = question.Type
-        record.Type = question.Type
-        records, err := grecordManager.QueryRecord(&record)
+        var rrecord db.RRecord
+        rrecord.Name = question.Name
+        rrecord.Class = question.Type
+        rrecord.Type = question.Type
+        records, err := db.Query(&rrecord, 0, 0)
         if err != nil {
             log.Println(err)
             continue
         }
         //construct an answer record and send to client
         if len(records) > 0 {
-            rr, err := RRConstruct(&records[0])
+            tempRRecord, _ := records[0].(db.RRecord)
+            rr, err := RRConstruct(&tempRRecord)
             if err != nil {
                 log.Println(err)
                 continue
@@ -124,6 +112,7 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
         var value SessionValue
         value.clientAddr = recvMsg.addr
         value.id = msg.Hdr.Id
+        value.time = time.Now().Unix()
 
         gsession.Lock()
         gsession.buffer[key] = value
@@ -202,19 +191,13 @@ func main() {
 
     //initialize session
     gsession.buffer = make(map[SessionKey]SessionValue)
-    grecordManager = &RecordManagerSqlite3{}
-    err = grecordManager.Open()
-    if err != nil {
-        log.Println(err)
-        return
-    }
-    defer grecordManager.Close()
-    var record Record
-    record.Name = "www.test.com"
-    record.Class = 1
-    record.Type = 1
-    record.Value = "10.32.171.60"
-    err = grecordManager.AddRecord(&record)
+
+    var rrecord db.RRecord
+    rrecord.Name = "www.test.com"
+    rrecord.Class = 1
+    rrecord.Type = 1
+    rrecord.Value = "10.32.171.60"
+    err = db.Add(&rrecord)
     if err != nil {
         log.Println(err)
         return
@@ -245,11 +228,11 @@ func main() {
     go doForwardToResolver(server, forwardConns, resolverAddrs, recvMsgChannel)
 
     //start web
-    err = WebStart()
-    if err != nil {
-        log.Println(err)
-        return
-    }
+    //err = WebStart()
+    //if err != nil {
+    //log.Println(err)
+    //return
+    //}
 
     buf := make([]byte, 65535)
     for {
