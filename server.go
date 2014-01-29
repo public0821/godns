@@ -2,14 +2,15 @@ package main
 
 import (
     //"./dns"
-    "bufio"
+    //"bufio"
     "github.com/public0821/dnserver/db"
-    "io"
+    "github.com/public0821/dnserver/util"
+    //"io"
     "log"
     "math/rand"
     "net"
     "os"
-    "strings"
+    //"strings"
     "time"
 )
 
@@ -179,7 +180,7 @@ func main() {
     log.SetFlags(log.LstdFlags | log.Lshortfile)
 
     //initialize resolver addrs
-    dnsServers, err := getDnsServer()
+    dnsServers, err := util.GetDnsServer()
     if err != nil {
         log.Println(err)
         return
