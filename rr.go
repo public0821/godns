@@ -2,6 +2,8 @@ package main
 
 import (
     "fmt"
+    "github.com/public0821/dnserver/db"
+    "github.com/public0821/dnserver/errors"
     "net"
     //"strings"
 )
@@ -79,7 +81,7 @@ func (a *RRA) PackRData(buf []byte, index int) (offset int, err error) {
 func (a *RRA) UnpackRData(buf []byte, index int) (offset int, err error) {
     offset = index
     if len(buf)-offset < IPV4_LEN {
-        err = NewError("data too short")
+        err = errors.New("data too short")
         return
     }
     a.IPv4 = net.IPv4(buf[offset], buf[offset+1], buf[offset+2], buf[offset+3])
@@ -90,7 +92,7 @@ func (a *RRA) UnpackRData(buf []byte, index int) (offset int, err error) {
 func (a *RRA) SetRData(data string) (err error) {
     a.IPv4 = net.ParseIP(data)
     if a.IPv4 == nil {
-        err = NewError("malformed ipv4 address: " + data)
+        err = errors.New("malformed ipv4 address: " + data)
     }
     return
 }
@@ -107,22 +109,22 @@ func RRNew(rrtype uint16) (rr RR, err error) {
         rr = new(RRA)
         return
     default:
-        err = NewError("unimplement")
+        err = errors.New("unimplement")
         return
     }
 }
 
-func RRConstruct(record *Record) (rr RR, err error) {
-    rr, err = RRNew(record.Type)
+func RRConstruct(rrecord *db.RRecord) (rr RR, err error) {
+    rr, err = RRNew(rrecord.Type)
     if err != nil {
         return
     }
     var header RRHeader
-    header.Name = record.Name
-    header.Class = record.Class
-    header.Type = record.Type
-    header.Ttl = record.Ttl
+    header.Name = rrecord.Name
+    header.Class = rrecord.Class
+    header.Type = rrecord.Type
+    header.Ttl = rrecord.Ttl
     rr.SetHeader(&header)
-    err = rr.SetRData(record.Value)
+    err = rr.SetRData(rrecord.Value)
     return
 }
