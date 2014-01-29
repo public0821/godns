@@ -2,6 +2,7 @@ package main
 
 import (
     "fmt"
+    "github.com/public0821/dnserver/errors"
     "strings"
 )
 
@@ -128,7 +129,7 @@ func (msg *Message) String() (text string) {
 // Unpack a binary message to a Msg structure.
 func (msg *Message) UnpackHeaderAndQuestion(data []byte) (offset int, err error) {
     if len(data) < HEADER_LENGTH {
-        err = NewError("message data too short")
+        err = errors.New("message data too short")
         return
     }
 
@@ -191,7 +192,7 @@ func (msg *Message) UnpackAll(data []byte) (err error) {
         }
     }
     if offset != len(data) {
-        err = NewError("message data too long")
+        err = errors.New("message data too long")
         return
     }
     return nil
@@ -214,7 +215,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
     offset = index
     for {
         if offset+1 > dataLen {
-            err = NewError("out of range")
+            err = errors.New("out of range")
             return
         }
         labelLen := int(data[offset])
@@ -233,7 +234,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
                 }
             }
             if offset+labelLen > dataLen {
-                err = NewError("out of range")
+                err = errors.New("out of range")
                 return
             }
             name += string(data[offset : offset+labelLen])
@@ -241,18 +242,18 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
             offset += labelLen
         case 0xC0:
             if offset+1 > dataLen {
-                err = NewError("out of range")
+                err = errors.New("out of range")
                 return
             }
             lablePtr := uint16(data[offset-1])<<10>>2 | uint16(data[offset])
             offset++
             // pointer to somewhere else in message.
             if int(lablePtr) > dataLen {
-                err = NewError("ptr out of range")
+                err = errors.New("ptr out of range")
                 return
             }
             if maxDepth == 0 {
-                err = NewError("too many ptr")
+                err = errors.New("too many ptr")
                 return
             }
             tempName, _, tempErr := unpackDomainName(data, int(lablePtr), maxDepth-1)
@@ -263,7 +264,7 @@ func unpackDomainName(data []byte, index int, maxDepth int) (name string, offset
             return
         default:
             // 0x80 and 0x40 are reserved
-            err = NewError("fomart error")
+            err = errors.New("fomart error")
             return
         }
     }
@@ -277,7 +278,7 @@ func unpackQuestion(data []byte, index int, question *Question) (offset int, err
         return
     }
     if offset+4 > len(data) {
-        err = NewError("out of range")
+        err = errors.New("out of range")
         return
     }
     question.Type, offset = unpackUint16(data, offset)
@@ -293,7 +294,7 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
         return
     }
     if offset+10 > len(data) {
-        err = NewError("out of range")
+        err = errors.New("out of range")
         return
     }
     hdr.Type, offset = unpackUint16(data, offset)
@@ -302,7 +303,7 @@ func unpackRR(data []byte, index int) (rr RR, offset int, err error) {
     hdr.RDLength, offset = unpackUint16(data, offset)
 
     if hdr.Class != CLASS_INET {
-        err = NewError("unimplement")
+        err = errors.New("unimplement")
         return
     }
 
@@ -341,7 +342,7 @@ func (message *Message) Pack(data []byte, needCompress bool) (length int, err er
     length = 0
     dataLen := len(data)
     if dataLen < HEADER_LENGTH {
-        err = NewError("too short")
+        err = errors.New("too short")
         return
     }
     length = packUint16(message.Hdr.Id, data, length)
@@ -401,7 +402,7 @@ func packQuestion(buf []byte, index int, question *Question, compression map[str
         return
     }
     if 4 > len(buf)-offset {
-        err = NewError("buffer too small to store question type and class")
+        err = errors.New("buffer too small to store question type and class")
         return
     }
     offset = packUint16(question.Type, buf, offset)
@@ -413,7 +414,7 @@ func packDomainName(name string, buf []byte, index int, compression map[string]i
     bufLen := len(buf)
     offset = index
     if len(name) > MAX_DOMAIN_NAME_LEN {
-        err = NewError(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN,
+        err = errors.New(fmt.Sprintf("Domain name length must <= %d: %s", MAX_DOMAIN_NAME_LEN,
             name))
         return
     }
@@ -441,11 +442,11 @@ func packDomainName(name string, buf []byte, index int, compression map[string]i
         }
         labelLen := len(label)
         if labelLen > MAX_DOMAIN_LABEL_LEN {
-            err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
+            err = errors.New(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
             return
         }
         if labelLen+1 > bufLen-offset {
-            err = NewError("buffer too small to store " + name)
+            err = errors.New("buffer too small to store " + name)
             return
         }
         if compression != nil {
@@ -460,11 +461,11 @@ func packDomainName(name string, buf []byte, index int, compression map[string]i
     //for _, label := range labels {
     //labelLen := len(label)
     //if labelLen > MAX_DOMAIN_LABEL_LEN {
-    //err = NewError(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
+    //err = errors.New(fmt.Sprintf("Domain label length must <= %d: %s", MAX_DOMAIN_LABEL_LEN, label))
     //return
     //}
     //if labelLen+1 > bufLen-offset {
-    //err = NewError("buffer too small to store " + name)
+    //err = errors.New("buffer too small to store " + name)
     //return
     //}
     //buf[offset] = uint8(labelLen)
@@ -495,7 +496,7 @@ func packRR(rr RR, buf []byte, index int, compression map[string]int) (offset in
     }
     //10 = sizeof(Type)+sizeof(Class)+sizeof(Ttl)+sizeof(RDLength)
     if 10 > len(buf)-offset {
-        err = NewError("buffer too small to store RR")
+        err = errors.New("buffer too small to store RR")
         return
     }
     offset = packUint16(header.Type, buf, offset)
