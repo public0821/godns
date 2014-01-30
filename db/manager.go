@@ -93,6 +93,26 @@ func NewDBManager() (dbm *DBManager, err error) {
                 return
             }
         }
+
+        sql = `create table user (
+        id integer not null primary key
+        , name text
+        , pwd text);`
+        _, err = tempdb.Exec(sql)
+        if err != nil {
+            tempdb.Close()
+            os.Remove(DB_FILE)
+            return
+        }
+        var user User
+        user.Name = "admin"
+        user.Pwd = "admin"
+        err = user.Add(&tempDbm)
+        if err != nil {
+            tempdb.Close()
+            os.Remove(DB_FILE)
+            return
+        }
     } else {
         tempdb, err = sql.Open("sqlite3", DB_FILE)
         if err != nil {
