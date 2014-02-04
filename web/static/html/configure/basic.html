@@ -1,0 +1,51 @@
+<div class="bs-docs-section">
+    <h2 id="overview" class="page-header">Mode</h2>
+    <div class="bs-example bs-example-type">
+        <div class="row">
+            <div class="col-md-3">
+                <input type="radio" ng-change="mode_change()"  ng-model="mode" value="forward">  Forward <br/>
+            </div>
+            <!--<div class="col-md-3">-->
+                <!--<input type="radio" ng-change="mode_change()"  ng-model="mode" value="recursion"> Recursion <br/>-->
+            <!--</div>-->
+        </div>
+    </div>
+    <h4 class="page-header" ng-show="mode=='forward'">Forward Server</h4>
+    <div ng-show="mode=='forward'" class="bs-example bs-example-type">
+<form class="form-horizontal" role="form">
+  <div class="form-group">
+    <div class="col-sm-2">
+        <input type="text" ng-model="fserver_ip" class="form-control"  placeholder="Ip">
+    </div>
+    <div class="col-sm-2">
+      <button type="submit" ng-click="add_fserver()" class="btn btn-default">Add</button>
+    </div>
+  </div>
+</form>
+<!--<div class="row"> -->
+    <!--<div class="col-md-2">-->
+        <!--<input type="text" ng-model="fserver_ip" class="form-control"  placeholder="Ip">-->
+    <!--</div>-->
+    <!--<div class="col-md-2">-->
+        <!--<button type="button" class="btn btn-primary" ng-click="add_fserver()" class="form-control" >Add</button>-->
+    <!--</div>-->
+    <!--</div>-->
+<table class="table table-hover table-striped" >
+    <tbody>
+    <tr ng-repeat="fserver in fservers">
+        <td>{{fserver.Ip }}</td>
+        <td>
+            <a ng-click="delete_fserver(fserver)" >
+                <i class="fa fa-times"></i>
+                Delete
+            </a>
+        </td>
+</tr>
+</tbody>
+</table>
+
+    </div>
+</div>
+<!--<div class="bs-docs-section">-->
+<!--<h3 id="overview" class="page-header">Overview</h3>-->
+<!--</div>-->
