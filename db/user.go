@@ -12,6 +12,10 @@ type User struct {
 	Pwd  string
 }
 
+func (m *User) FuzzyQuery(dbm *DBManager, start, end int) (records []interface{}, err error) {
+	err = errors.New("unimplemented")
+	return
+}
 func (m *User) Query(dbm *DBManager, start, offset int) (records []interface{}, err error) {
 	if start < 0 || offset < 0 {
 		err = errors.New("invalid arguments")

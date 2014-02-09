@@ -1,6 +1,16 @@
 var dnserverControllers = angular.module('dnserverControllers', []);
 var dnserverApp = angular.module('dnserverApp', ['ngRoute', 'ui.bootstrap', 'dnserverControllers']);
-//var dnserverApp = angular.module('dnserverApp', ['ngRoute', 'ui.bootstrap']);
+
+var typeNameToInt={"A":1
+    , "PTR":12
+    , "MX":15
+    , "AAAA":28};
+var typeIntToName={};
+for(key in typeNameToInt){
+    typeIntToName[typeNameToInt[key]] = key
+};
+      console.log(typeIntToName);
+      console.log(typeNameToInt);
 
 dnserverApp.config(['$routeProvider',
   function($routeProvider) {
@@ -23,14 +33,18 @@ dnserverApp.config(['$routeProvider',
   }]);
 
 var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_scope) {
+      $scope.types=[];
+      for(type in typeNameToInt){
+        $scope.types.push(type);
+      }
     if(record==null){
-        $scope.record_type=1;
+        $scope.record_type="A";
         $scope.record_ttl=0;
         $scope.record_name="";
         $scope.record_value="";
         $scope.record_id=0;
     }else{
-        $scope.record_type=record.Type;
+        $scope.record_type=typeIntToName[record.Type];
         $scope.record_ttl=record.Ttl;
         $scope.record_name=record.Name;
         $scope.record_value=record.Value;
@@ -40,17 +54,18 @@ var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_sco
         var record = {
             Id:this.record_id,
             Name: this.record_name,
-            Type: parseInt(this.record_type),
+            Type: typeNameToInt[this.record_type],
             Value: this.record_value,
-            Ttl: parseInt(this.record_ttl)
+            Ttl: parseInt(this.record_ttl),
+            Class:1
         };
       console.log(record);
         if(record.Name.length == 0 || record.Value.length == 0){
             $scope.record_tip='name and value field should be specified';
             return
         }
-        if(isNaN(record.Ttl) || isNaN(record.Type)){
-            $scope.record_tip='type and ttl should be number';
+        if(isNaN(record.Ttl)){
+            $scope.record_tip='ttl should be number';
             return
         }
         if(record.Ttl<0){
@@ -116,28 +131,29 @@ dnserverControllers.controller('ConfigureBasicCtrl', ['$scope', '$http',
             $scope.fservers=data
         });
       }
+     $scope.alert = null;
       console.log(data);
     }).error(function(data, status, headers, config) {
-        $scope.tip="server error";
+        $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
         $scope.mode_change=function(){};
     });
 
     $scope.mode_change= function () {
       if($scope.mode == "forward"){
         $http.post('/sysoption/',{"name":"mode", "value":$scope.mode}).success(function(data) {
-            $scope.tip="";
             $http.get('/forwardserver/').success(function(data) {
                 $scope.fservers=data
             });
+            $scope.alert = null;
         }).error(function(data, status, headers, config) {
-            $scope.tip="server error";
+            $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
         });
       }
       else if($scope.mode == "recursion"){
         $http.post('/sysoption/',{"name":"mode", "value":$scope.mode}).success(function(data) {
-                $scope.tip="";
+            $scope.alert = null;
         }).error(function(data, status, headers, config) {
-            $scope.tip="server error";
+            $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
         });
       }
   };
@@ -149,17 +165,21 @@ dnserverControllers.controller('ConfigureBasicCtrl', ['$scope', '$http',
                     break;
                 }
             };
-            $scope.tip="";
+            $scope.alert = null;
         }).error(function(data, status, headers, config) {
-            $scope.tip="server error";
+            $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
         });
   };
     $scope.add_fserver= function () {
         $http.post('/forwardserver/', {"Ip":$scope.fserver_ip}).success(function(data) {
-            $scope.tip="";
+            $scope.alert = null;
             $scope.fservers.push({"Ip":$scope.fserver_ip});
         }).error(function(data, status, headers, config) {
-            $scope.tip="server error";
+            if (data.length != 0){
+                $scope.alert = { type: 'danger', msg: data };
+            }else{
+                $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
+            }
         });
   };
 }]);
@@ -176,17 +196,30 @@ dnserverControllers.controller('UserChangePwdCtrl', ['$scope', '$http',
             $http.post('/user/chpassword/',params).success(function(data) {
                 $scope.tip='success';
             }).error(function(data, status, headers, config) {
-                $scope.tip=data;
+                console.log(data)
+                if (data.length ==0){
+                    $scope.tip="server error, please relogin and try again"
+                }else{
+                    $scope.tip=data;
+                }
             });
       };
 }]);
 
 dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
   function ($scope, $http, $modal) {
+      $scope.typeIntToName = typeIntToName;
+      $scope.types=[];
+      for(type in typeNameToInt){
+        $scope.types.push(type);
+      }
       $scope.records=[];
     $http.get('/record').success(function(data) {
       $scope.records = data;
+      $scope.alert = null; 
       console.log(data);
+    }).error(function(data, status, headers, config) {
+        $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
     });
   $scope.open_add_record = function () {
     var modalInstance = $modal.open({
@@ -227,8 +260,10 @@ dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
                 break;
             }
         };
+      $scope.alert = null; 
     }).error(function(data, status, headers, config) {
-      //
+        console.log("delete record failed");
+        $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
     });
   };
  
@@ -236,18 +271,17 @@ dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
   $scope.query_type=1
   $scope.query_value=""
   $scope.query = function () {
-    $http.get('/record?name='+$scope.query_name+"&type="+$scope.query_type+"&value="+$scope.query_value)
+    $http.get('/record?name='+$scope.query_name+"&type="+typeNameToInt[$scope.query_type]+"&value="+$scope.query_value)
         .success(function(data) {
       $scope.records = data;
+      $scope.alert = null; 
       console.log(data);
+    }).error(function(data, status, headers, config) {
+        $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
     });
   };
 }]);
 
-dnserverControllers.controller('RecordAddCtrl', ['$scope', '$http',
-  function ($scope, $http) {
- 
-  }]);
 //phonecatApp.controller('PhoneListCtrl', function ($scope) {
   //$scope.phones = [
     //{'name': 'Nexus S',

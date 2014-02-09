@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"crypto/rand"
@@ -28,6 +28,11 @@ func generateSessionid() (sid string, err error) {
 
 func Auth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		redirectStatus := http.StatusUnauthorized
+		if strings.HasPrefix(r.URL.Path, "/static/") {
+			redirectStatus = http.StatusSeeOther
+		}
+		//static file and not html
 		if strings.HasPrefix(r.URL.Path, "/static/") && !strings.HasSuffix(r.URL.Path, ".html") {
 			return
 		}
@@ -47,21 +52,23 @@ func Auth() http.HandlerFunc {
 				return
 			}
 			http.SetCookie(w, cookie)
-			http.Redirect(w, r, "/static/html/login.html", http.StatusSeeOther)
+			http.Redirect(w, r, "/static/html/login.html", redirectStatus)
 			return
 		}
 		//session not authed
 		sid := cookie.Value
 		authed, ok := authedSession[sid]
 		if !(ok && authed) {
-			if r.URL.Path == "/user/login" {
+			//authed and post to /user/login
+			if r.URL.Path == "/user/login/" {
 				return
 			}
-			if !strings.HasPrefix(r.URL.Path, "/static/html/login") && strings.HasPrefix(r.URL.Path, "/static/html") {
+			//if not start with /static/html/login, redirected to /static/html/login.html
+			if !strings.HasPrefix(r.URL.Path, "/static/html/login") {
 				log.Println(sid)
 				log.Println(authedSession)
 				log.Println("not authed")
-				http.Redirect(w, r, "/static/html/login.html", http.StatusSeeOther)
+				http.Redirect(w, r, "/static/html/login.html", redirectStatus)
 				return
 			}
 			return
@@ -187,12 +194,7 @@ func changePassword(r *http.Request) (rcode int, result string) {
 	return http.StatusOK, ""
 }
 
-func main() {
-	_, err := db.NewDBManager()
-	if err != nil {
-		log.Println(err)
-		return
-	}
+func Start() {
 
 	m := martini.Classic()
 

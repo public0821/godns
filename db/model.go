@@ -5,15 +5,16 @@ import (
 )
 
 type Model interface {
-    DeleteAll(dbm *DBManager) (err error)
-    Add(dbm *DBManager) (err error)
+	DeleteAll(dbm *DBManager) (err error)
+	Add(dbm *DBManager) (err error)
 
-    //delete the record whoes id is equal to this record's id
-    Delete(dbm *DBManager) (err error)
+	//delete the record whoes id is equal to this record's id
+	Delete(dbm *DBManager) (err error)
 
-    Modify(dbm *DBManager) (err error)
-    Query(dbm *DBManager, start, end int) (records []interface{}, err error)
+	Modify(dbm *DBManager) (err error)
+	Query(dbm *DBManager, start, end int) (records []interface{}, err error)
+	FuzzyQuery(dbm *DBManager, start, end int) (records []interface{}, err error)
 
-    //return the count of all record in table
-    Count(dbm *DBManager) (count int, err error)
+	//return the count of all record in table
+	Count(dbm *DBManager) (count int, err error)
 }

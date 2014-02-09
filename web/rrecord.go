@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"github.com/codegangsta/martini"
@@ -59,7 +59,7 @@ func getRRecord(r *http.Request) (rcode int, result string) {
 		}
 		offset = number
 	}
-	rrcords, err := db.Query(&record, start, offset)
+	rrcords, err := db.FuzzyQuery(&record, start, offset)
 	if err != nil {
 		return http.StatusInternalServerError, err.Error()
 	}
