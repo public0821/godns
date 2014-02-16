@@ -52,7 +52,6 @@ type RR interface {
 	UnpackRData(buf []byte, index int) (offset int, err error)
 	String() string
 	SetRData(data string) (err error)
-	//RDataLength() int
 }
 
 type rrBase struct {
@@ -71,20 +70,24 @@ type RRA struct {
 	IPv4 net.IP
 }
 
+type RRMx struct {
+	RRA
+}
+
 func (a *RRA) PackRData(buf []byte, index int) (offset int, err error) {
 	copy(buf[index:], a.IPv4.To4())
-	offset = index + IPV4_LEN
+	offset = index + net.IPv4len
 	return
 }
 
 func (a *RRA) UnpackRData(buf []byte, index int) (offset int, err error) {
 	offset = index
-	if len(buf)-offset < IPV4_LEN {
+	if len(buf)-offset < net.IPv4len {
 		err = errors.New("data too short")
 		return
 	}
 	a.IPv4 = net.IPv4(buf[offset], buf[offset+1], buf[offset+2], buf[offset+3])
-	offset += IPV4_LEN
+	offset += net.IPv4len
 	return
 }
 
@@ -106,6 +109,12 @@ func RRNew(rrtype uint16) (rr RR, err error) {
 	switch rrtype {
 	case TYPE_A:
 		rr = new(RRA)
+		return
+	case TYPE_MX:
+		rr = new(RRMx)
+		return
+	case TYPE_AAAA:
+		rr = new(RRAaaa)
 		return
 	default:
 		err = errors.New("unimplement")

@@ -86,6 +86,7 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
 			}
 			msg.Hdr.Rcode = dns.RCODE_SUCCESS
 			msg.Hdr.QueryResponse = dns.QR_RESPONSE
+			msg.Hdr.RecursionAvailable = true
 			msg.Answer = append(msg.Answer, rr)
 			buflen, err := msg.Pack(buf, true)
 			log.Println("construct an answer record")

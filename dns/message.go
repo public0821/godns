@@ -24,10 +24,6 @@ const MAX_COMPRESSION_DEPTH = 5
 //|                    ARCOUNT                    |
 //+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 const HEADER_LENGTH = 12
-const (
-	IPV4_LEN = 4
-	IPV6_LEN = 16
-)
 
 type Header struct {
 	Id                 uint16
@@ -68,10 +64,6 @@ func (q *Question) String() (text string) {
 	text += fmt.Sprintf("Class:\t%s\n", ClassToString[q.Class])
 	return
 }
-
-//func (a *RRA) RDataLength() int {
-//return IPV4_LEN
-//}
 
 //+---------------------+
 //|        Header       |
