@@ -65,39 +65,42 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
 			log.Println(err)
 			continue
 		}
-		//check whether the domain name is in record manager
-		question := &msg.Question[0]
-		var rrecord db.RRecord
-		rrecord.Name = question.Name
-		rrecord.Class = question.Class
-		rrecord.Type = question.Type
-		records, err := db.Query(&rrecord, 0, 0)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		//construct an answer record and send to client
-		if len(records) > 0 {
-			msg.Hdr.Rcode = dns.RCODE_SUCCESS
-			msg.Hdr.QueryResponse = dns.QR_RESPONSE
-			msg.Hdr.RecursionAvailable = true
-			for _, record := range records {
-				tempRRecord, _ := record.(db.RRecord)
-				rr, err := RRConstruct(&tempRRecord)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				msg.Answer = append(msg.Answer, rr)
-			}
-			log.Println("construct answer ")
-			buflen, err := msg.Pack(buf, true)
-			_, err = server.WriteToUDP(buf[:buflen], &recvMsg.addr)
+		//if only one question in message
+		if len(msg.Question) == 1 {
+			//check whether the domain name is in record manager
+			question := &msg.Question[0]
+			var rrecord db.RRecord
+			rrecord.Name = question.Name
+			rrecord.Class = question.Class
+			rrecord.Type = question.Type
+			records, err := db.Query(&rrecord, 0, 0)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-			continue
+			//construct an answer record and send to client
+			if len(records) > 0 {
+				msg.Hdr.Rcode = dns.RCODE_SUCCESS
+				msg.Hdr.QueryResponse = dns.QR_RESPONSE
+				msg.Hdr.RecursionAvailable = true
+				for _, record := range records {
+					tempRRecord, _ := record.(db.RRecord)
+					rr, err := RRConstruct(&tempRRecord)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					msg.Answer = append(msg.Answer, rr)
+				}
+				log.Println("construct answer ")
+				buflen, err := msg.Pack(buf, true)
+				_, err = server.WriteToUDP(buf[:buflen], &recvMsg.addr)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				continue
+			}
 		}
 		//forward to upstream resolver
 		addr, err := net.ResolveUDPAddr("udp", resolverAddrs[addrIndex])
