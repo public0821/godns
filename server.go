@@ -78,18 +78,20 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
 		}
 		//construct an answer record and send to client
 		if len(records) > 0 {
-			tempRRecord, _ := records[0].(db.RRecord)
-			rr, err := RRConstruct(&tempRRecord)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
 			msg.Hdr.Rcode = dns.RCODE_SUCCESS
 			msg.Hdr.QueryResponse = dns.QR_RESPONSE
 			msg.Hdr.RecursionAvailable = true
-			msg.Answer = append(msg.Answer, rr)
+			for _, record := range records {
+				tempRRecord, _ := record.(db.RRecord)
+				rr, err := RRConstruct(&tempRRecord)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				msg.Answer = append(msg.Answer, rr)
+			}
+			log.Println("construct answer ")
 			buflen, err := msg.Pack(buf, true)
-			log.Println("construct an answer record")
 			_, err = server.WriteToUDP(buf[:buflen], &recvMsg.addr)
 			if err != nil {
 				log.Println(err)

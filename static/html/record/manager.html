@@ -67,6 +67,7 @@
         <button type="button" class="btn btn-primary" ng-click="open_add_record()">Add new record</button>
     </div>
 </div>
+<div>
 <table class="table table-hover table-striped" >
 
     <thead>
@@ -97,4 +98,9 @@
 </tr>
 </tbody>
 </table>
-
+</div>
+<div class="row"> 
+    <div class="col-md-10 col-sm-offset-2">
+    <pagination total-items="bigTotalItems" page="bigCurrentPage" max-size="maxSize"  boundary-links="true" rotate="false" num-pages="numPages"></pagination>
+    </div>
+</div>

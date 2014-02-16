@@ -280,6 +280,13 @@ dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
         $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
     });
   };
+
+  $scope.totalItems = 64;
+  $scope.currentPage = 4;
+  $scope.maxSize = 5;
+  
+  $scope.bigTotalItems = 175;
+  $scope.bigCurrentPage = 1;
 }]);
 
 //phonecatApp.controller('PhoneListCtrl', function ($scope) {
