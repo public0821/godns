@@ -130,7 +130,7 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
 
 		var key SessionKey
 		key.forwardConn = conn
-		key.name = question.Name
+		key.name = (&msg.Question[0]).Name
 		key.id = newId
 
 		var value SessionValue
