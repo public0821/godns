@@ -33,10 +33,10 @@ dnserverApp.config(['$routeProvider',
   }]);
 
 var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_scope) {
-      $scope.types=[];
-      for(type in typeNameToInt){
+    $scope.types=[];
+    for(type in typeNameToInt){
         $scope.types.push(type);
-      }
+    }
     if(record==null){
         $scope.record_type="A";
         $scope.record_ttl=0;
@@ -50,6 +50,7 @@ var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_sco
         $scope.record_value=record.Value;
         $scope.record_id=record.Id;
     }
+
   $scope.edit_record = function () {
         var record = {
             Id:this.record_id,
@@ -206,6 +207,7 @@ dnserverControllers.controller('UserChangePwdCtrl', ['$scope', '$http',
       };
 }]);
 
+
 dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
   function ($scope, $http, $modal) {
       $scope.typeIntToName = typeIntToName;
@@ -216,6 +218,7 @@ dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
       $scope.records=[];
     $http.get('/record').success(function(data) {
       $scope.records = data;
+      //$scope.totalItems = $scope.records.length;
       $scope.alert = null; 
       console.log(data);
     }).error(function(data, status, headers, config) {
@@ -275,17 +278,17 @@ dnserverControllers.controller('RecordCtrl', ['$scope', '$http', '$modal',
         .success(function(data) {
       $scope.records = data;
       $scope.alert = null; 
+      //$scope.totalItems = $scope.records.length;
       console.log(data);
     }).error(function(data, status, headers, config) {
         $scope.alert = { type: 'danger', msg: "server error,please relogin and try again" };
     });
   };
 
-  $scope.totalItems = 64;
-  $scope.currentPage = 4;
-  $scope.maxSize = 5;
-  $scope.pageChanged = function(page){
-  };
+  //$scope.currentPage = 1;
+  //$scope.maxSize = 5;
+  //$scope.pageChanged = function(page){
+  //};
 }]);
 
 //phonecatApp.controller('PhoneListCtrl', function ($scope) {
