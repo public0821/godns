@@ -1,6 +1,11 @@
 var dnserverControllers = angular.module('dnserverControllers', []);
 var dnserverApp = angular.module('dnserverApp', ['ngRoute', 'ui.bootstrap', 'dnserverControllers']);
 
+var typeNameToTip={"A":"192.168.1.1"
+    , "PTR":"www.test.com"
+    , "MX":"a.mail.com 90"
+    , "AAAA":"2001::1"};
+
 var typeNameToInt={"A":1
     , "PTR":12
     , "MX":15
@@ -51,6 +56,12 @@ var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_sco
         $scope.record_id=record.Id;
     }
 
+
+    $scope.record_value_tip = "i.e. " + typeNameToTip[$scope.record_type]
+    $scope.record_type_change = function(){
+        $scope.record_value_tip = "i.e. " + typeNameToTip[this.record_type]
+    };
+
   $scope.edit_record = function () {
         var record = {
             Id:this.record_id,
@@ -75,7 +86,7 @@ var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_sco
         }
     $http.post('/record/',record).success(function(data) {
       console.log(data);
-        if(record.Id!=0){
+        if(record.Id!=0){ //if update, update global scope
             for (var i=0; i < global_scope.records.length; i++) {
                 if(global_scope.records[i].Id == record.Id){
                     global_scope.records[i]=record
@@ -86,6 +97,7 @@ var RecordEditCtrl = function ($scope, $http, $modalInstance, record, global_sco
         $scope.record_tip='success';
     }).error(function(data, status, headers, config) {
         $scope.record_tip='server error';
+        console.log('error: ' + data)
     });
         
   };

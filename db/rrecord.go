@@ -22,7 +22,7 @@ func (m *RRecord) isValidFormat() (err error) {
 		err = errors.New("name and value field should be specified")
 		return
 	}
-	if m.Type == dns.TYPE_A || m.Type == dns.TYPE_MX || m.Type == dns.TYPE_AAAA {
+	if m.Type == dns.TYPE_A || m.Type == dns.TYPE_AAAA {
 		if net.ParseIP(m.Value) == nil {
 			err = errors.New("invalid ip address")
 			return
