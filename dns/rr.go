@@ -70,10 +70,6 @@ type RRA struct {
 	IPv4 net.IP
 }
 
-type RRMx struct {
-	RRA
-}
-
 func (a *RRA) PackRData(buf []byte, index int) (offset int, err error) {
 	copy(buf[index:], a.IPv4.To4())
 	offset = index + net.IPv4len

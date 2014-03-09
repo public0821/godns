@@ -5,6 +5,7 @@ import (
 	"github.com/public0821/dnserver/dns"
 	"github.com/public0821/dnserver/errors"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -31,6 +32,18 @@ func (m *RRecord) isValidFormat() (err error) {
 	if m.Type == dns.TYPE_PTR {
 		if net.ParseIP(m.Name) == nil {
 			err = errors.New("invalid ip address")
+			return
+		}
+	}
+	if m.Type == dns.TYPE_MX {
+		fields := strings.Split(m.Value, " ")
+		if len(fields) != 2 {
+			err = errors.New("invalid mx rdata: " + m.Value)
+			return
+		}
+		_, err = strconv.Atoi(fields[1])
+		if err != nil {
+			err = errors.New("invalid mx priority: " + fields[1])
 			return
 		}
 	}
@@ -84,7 +97,11 @@ func getQuerySql(m *RRecord, fuzzy bool) string {
 		if fuzzy {
 			conditions = append(conditions, fmt.Sprintf(" value like '%%%s%%' ", m.Value))
 		} else {
-			conditions = append(conditions, fmt.Sprintf(" value = '%s' ", m.Value))
+			if m.Type == dns.TYPE_MX {
+				conditions = append(conditions, fmt.Sprintf(" value like '%s %%' ", m.Value))
+			} else {
+				conditions = append(conditions, fmt.Sprintf(" value = '%s' ", m.Value))
+			}
 		}
 	}
 	if m.Ttl != 0 {
