@@ -4,17 +4,28 @@ import (
 //"github.com/public0821/dnserver/errors"
 )
 
-type Model interface {
-	DeleteAll(dbm *DBManager) (err error)
-	Add(dbm *DBManager) (err error)
+type RRecord struct {
+    Id    int64
+    Name  string
+    Class uint16
+    Type  uint16
+    Value string
+    Ttl   uint32
+}
 
-	//delete the record whoes id is equal to this record's id
-	Delete(dbm *DBManager) (err error)
+type User struct {
+    Id   int
+    Name string
+    Pwd  string
+}
 
-	Modify(dbm *DBManager) (err error)
-	Query(dbm *DBManager, start, end int) (records []interface{}, err error)
-	FuzzyQuery(dbm *DBManager, start, end int) (records []interface{}, err error)
+type SysOption struct {
+    Id    int
+    Name  string
+    Value string
+}
 
-	//return the count of all record in table
-	Count(dbm *DBManager) (count int, err error)
+type ForwardServer struct {
+    Id  int
+    Ip  string
 }
