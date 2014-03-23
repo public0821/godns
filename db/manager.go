@@ -9,19 +9,19 @@ import (
     "os"
 )
 
-const db_path = "/etc/dnserver"
-const db_file = db_path + "/db.sqlite3"
+const DB_PATH = "/etc/dnserver"
+const DB_FILE = DB_PATH + "/db.sqlite3"
 
 func InitDb() (err error) {
     //file not exist
-    if _, err = os.Stat(db_file); os.IsNotExist(err) {
-        err = os.MkdirAll(db_path, 0744)
+    if _, err = os.Stat(DB_FILE); os.IsNotExist(err) {
+        err = os.MkdirAll(DB_PATH, 0744)
         if err != nil {
             return
         }
         err = initDb()
         if err != nil {
-            os.Remove(db_file)
+            os.Remove(DB_FILE)
             return
         }
     }
@@ -30,7 +30,7 @@ func InitDb() (err error) {
 
 func initDb() (err error) {
     // connect to db using standard Go database/sql API
-    db, err := sql.Open("sqlite3", db_file)
+    db, err := sql.Open("sqlite3", DB_FILE)
     if err != nil {
         return
     }
@@ -86,7 +86,7 @@ func initDb() (err error) {
 }
 
 func GetDbmap(dbmap *gorp.DbMap, err error) {
-    db, err := sql.Open("sqlite3", db_file)
+    db, err := sql.Open("sqlite3", DB_FILE)
     if err != nil {
         return
     }
