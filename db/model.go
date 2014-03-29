@@ -4,7 +4,7 @@ import (
 //"github.com/public0821/dnserver/errors"
 )
 
-type RRecord struct {
+type Record struct {
     Id    int64
     Name  string
     Class uint16
@@ -14,18 +14,15 @@ type RRecord struct {
 }
 
 type User struct {
-    Id   int
     Name string
     Pwd  string
 }
 
 type SysOption struct {
-    Id    int
     Name  string
     Value string
 }
 
 type ForwardServer struct {
-    Id  int
-    Ip  string
+    Ip string
 }
