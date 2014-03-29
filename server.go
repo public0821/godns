@@ -69,11 +69,14 @@ func doForwardToResolver(server *net.UDPConn, forwardConns []*net.UDPConn, resol
 		if len(msg.Question) == 1 {
 			//check whether the domain name is in record manager
 			question := &msg.Question[0]
-			var rrecord db.RRecord
-			rrecord.Name = question.Name
-			rrecord.Class = question.Class
-			rrecord.Type = question.Type
-			records, err := db.Query(&rrecord, 0, 0)
+			var records []db.RRecord
+			dbmap, err := db.OpenDbmap()
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			defer db.CloseDbmap()
+			_, err = dbmap.Select(&records, "select * from rrecord where name=? and class=? and type=?", question.Name, question.Class, question.Type)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -217,7 +220,7 @@ func main() {
 	gsession.buffer = make(map[SessionKey]SessionValue)
 
 	//initialize db
-	_, err = db.NewDBManager()
+	err = db.InitDb()
 	if err != nil {
 		log.Println(err)
 		return
